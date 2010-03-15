@@ -83,7 +83,7 @@ osdInitLayer( CoreLayer                  *layer,
      description->type = DLTF_GRAPHICS;
 
      /* set name */
-     snprintf( description->name, DFB_DISPLAY_LAYER_DESC_NAME_LENGTH, "TI Lazy OSD Layer" );
+     snprintf( description->name, DFB_DISPLAY_LAYER_DESC_NAME_LENGTH, "Lazy OSD Layer" );
 
      /* fill out the default configuration */
      config->flags       = DLCONF_WIDTH       | DLCONF_HEIGHT |
@@ -153,7 +153,7 @@ osdSetRegion( CoreLayer                  *layer,
      D_MAGIC_ASSERT( alloc, LazyOSDAllocationData );
 
      ret = lazy_operation_addlayer (layer->shared->layer_id,
-                                    alloc->buffer_index,
+                                    alloc->buffer_id,
                                     layer->shared->default_config.width,
                                     layer->shared->default_config.height,
                                     config->dest.x, config->dest.y,
@@ -212,7 +212,7 @@ osdFlipRegion( CoreLayer             *layer,
      D_MAGIC_ASSERT( alloc, LazyOSDAllocationData );
 
      ret = lazy_operation_fliplayer (layer->shared->layer_id,
-                                     alloc->buffer_index);
+                                     alloc->buffer_id);
      if (ret != 1)
              return DFB_IO;
 
@@ -246,7 +246,7 @@ osdUpdateRegion( CoreLayer             *layer,
      D_MAGIC_ASSERT( alloc, LazyOSDAllocationData );
 
      ret = lazy_operation_fliplayer (layer->shared->layer_id,
-                                     alloc->buffer_index);
+                                     alloc->buffer_id);
      if (ret != 1)
              return DFB_IO;
 

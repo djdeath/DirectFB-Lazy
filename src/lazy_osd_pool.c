@@ -96,10 +96,7 @@ osdInitPool( CoreDFB                    *core,
         ret_desc->access[CSAID_GPU]    = CSAF_READ | CSAF_WRITE | CSAF_SHARED;
         ret_desc->access[CSAID_LAYER0] = CSAF_READ | CSAF_WRITE | CSAF_SHARED;
 
-        snprintf( ret_desc->name, DFB_SURFACE_POOL_DESC_NAME_LENGTH, "OSD Pool" );
-
-        data->alloc_index = 0;
-        data->alloc_count = 0;
+        snprintf( ret_desc->name, DFB_SURFACE_POOL_DESC_NAME_LENGTH, "Lazy OSD Pool" );
 
         local->core = core;
         /* local->mem  = ddrv->fb[OSD0].mem; */
@@ -240,17 +237,26 @@ osdAllocateBuffer( CoreSurfacePool       *pool,
         surface = buffer->surface;
         D_MAGIC_ASSERT (surface, CoreSurface);
 
-        alloc->buffer_index = data->alloc_index;
+        if (!lazy_operation_addbuffer (surface->config.size.w,
+                                       surface->config.size.h,
+                                       DFB_BYTES_PER_PIXEL (surface->config.format),
+                                       &alloc->buffer_id))
+        {
+                D_ERROR ("Cannot add buffer\n");
 
-        alloc->pitch  = surface->config.size.w * 4;
-        alloc->size   = surface->config.size.h * alloc->pitch;
+                return DFB_IO;
+        }
+
+        alloc->rowstride = DFB_BYTES_PER_PIXEL (surface->config.format) *
+                surface->config.size.w;
+        alloc->size = DFB_BYTES_PER_PIXEL (surface->config.format) *
+                surface->config.size.w * surface->config.size.h;
         snprintf (alloc->filename, sizeof (alloc->filename),
-                  "/tmp/%x", alloc->buffer_index);
+                  "/tmp/%x", alloc->buffer_id);
 
         D_DEBUG_AT (OSD_Surfaces,
-                    "  -> index %d, pitch %d, size %d => %s\n",
-                    alloc->buffer_index,
-                    alloc->pitch,
+                    "  -> index %d, size %d => %s\n",
+                    alloc->buffer_id,
                     alloc->size,
                     alloc->filename);
 
@@ -263,19 +269,6 @@ osdAllocateBuffer( CoreSurfacePool       *pool,
 
                 return DFB_IO;
         }
-
-        if (lseek (alloc->fd, alloc->size, SEEK_SET) == -1)
-        {
-                D_PERROR ("Cannot seek at %i in %s \n",
-                          alloc->size, alloc->filename);
-                close (alloc->fd);
-
-                return DFB_IO;
-        }
-
-        /* No check, should be ok... */
-        write (alloc->fd, &alloc->fd, sizeof (alloc->fd));
-        lseek (alloc->fd, 0, SEEK_SET);
 
         if ((alloc->ptr = mmap (NULL, alloc->size,
                                 PROT_READ | PROT_WRITE,
@@ -294,14 +287,6 @@ osdAllocateBuffer( CoreSurfacePool       *pool,
         allocation->offset = 0;
 
         D_MAGIC_SET (alloc, LazyOSDAllocationData);
-
-        D_DEBUG_AT (OSD_Surfaces,
-                    "  -> new_alloc_index %d, new_alloc_count %d\n",
-                    data->alloc_index,
-                    data->alloc_count);
-
-        data->alloc_index++;
-        data->alloc_count++;
 
         return DFB_OK;
 }
@@ -339,9 +324,9 @@ osdDeallocateBuffer( CoreSurfacePool       *pool,
                 alloc->fd = -1;
         }
 
-        D_MAGIC_CLEAR (alloc);
+        lazy_operation_delbuffer (alloc->buffer_id);
 
-        data->alloc_count--;
+        D_MAGIC_CLEAR (alloc);
 
         return DFB_OK;
 }
@@ -365,15 +350,10 @@ osdLock( CoreSurfacePool       *pool,
 
         D_DEBUG_AT( OSD_SurfLock, "%s( %p )\n", __FUNCTION__, lock->buffer );
 
-        int index  = 0;
-        /* int height = alloc->size / alloc->pitch; */
-
-        /* alloc->size   = height * alloc->pitch; */
-
         allocation->size   = alloc->size;
         allocation->offset = 0;
 
-        lock->pitch  = alloc->pitch;
+        lock->pitch  = alloc->rowstride;
         lock->offset = 0;
         lock->addr   = alloc->ptr;
         lock->phys   = 0;

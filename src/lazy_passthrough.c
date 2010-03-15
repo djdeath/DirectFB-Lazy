@@ -79,19 +79,17 @@ lazy_operation_fini (void)
 }
 
 int
-lazy_operation_addlayer (int layer_num, int buffer_num,
+lazy_operation_addlayer (unsigned int layer_id, unsigned int buffer_id,
                          int width, int height,
                          int sx, int sy, int sw, int sh,
                          int dx, int dy, int dw, int dh)
 {
-        lazy_int_t ret;
         lazy_operation_addlayer_t op;
-
-        SOCKET_LOCK ();
+        lazy_operation_addlayer_res_t ret;
 
         memset (&op, 0, sizeof (op));
-        op.operation = LAZY_ADD_LAYER;
-        op.layer_num = layer_num;
+        op.operation = LAZY_OPERATION_ADD_LAYER;
+        op.layer_id = layer_id;
         op.width = width;
         op.height = height;
         op.src.x = sx;
@@ -102,7 +100,10 @@ lazy_operation_addlayer (int layer_num, int buffer_num,
         op.dst.y = dy;
         op.dst.w = dw;
         op.dst.h = dh;
-        snprintf (op.filename, sizeof (op.filename), "%x", buffer_num);
+
+        op.buffer_id = buffer_id;
+
+        SOCKET_LOCK ();
 
         if (write (socket_fd, &op, sizeof (op)) != sizeof (op))
         {
@@ -116,7 +117,7 @@ lazy_operation_addlayer (int layer_num, int buffer_num,
                 goto addlayer_fail;
         }
 
-        if (ret != 1)
+        if (ret.result != LAZY_OPERATION_RESULT_SUCCESS)
                 goto addlayer_fail;
 
         SOCKET_UNLOCK ();
@@ -131,16 +132,16 @@ addlayer_fail:
 }
 
 int
-lazy_operation_dellayer (int layer_num)
+lazy_operation_dellayer (unsigned int layer_id)
 {
-        lazy_int_t ret;
         lazy_operation_dellayer_t op;
-
-        SOCKET_LOCK ();
+        lazy_operation_dellayer_res_t ret;
 
         memset (&op, 0, sizeof (op));
-        op.operation = LAZY_DEL_LAYER;
-        op.layer_num = layer_num;
+        op.operation = LAZY_OPERATION_DEL_LAYER;
+        op.layer_id = layer_id;
+
+        SOCKET_LOCK ();
 
         if (write (socket_fd, &op, sizeof (op)) != sizeof (op))
         {
@@ -154,7 +155,7 @@ lazy_operation_dellayer (int layer_num)
                 goto addlayer_fail;
         }
 
-        if (ret != 1)
+        if (ret.result != LAZY_OPERATION_RESULT_SUCCESS)
                 goto addlayer_fail;
 
         SOCKET_UNLOCK ();
@@ -169,17 +170,17 @@ addlayer_fail:
 }
 
 int
-lazy_operation_fliplayer (int layer_num, int buffer_num)
+lazy_operation_fliplayer (unsigned int layer_id, unsigned int buffer_id)
 {
-        lazy_int_t ret;
         lazy_operation_fliplayer_t op;
-
-        SOCKET_LOCK ();
+        lazy_operation_fliplayer_res_t ret;
 
         memset (&op, 0, sizeof (op));
-        op.operation = LAZY_FLIP_LAYER;
-        op.layer_num = layer_num;
-        snprintf (op.filename, sizeof (op.filename), "%x", buffer_num);
+        op.operation = LAZY_OPERATION_FLIP_LAYER;
+        op.layer_id = layer_id;
+        op.buffer_id = buffer_id;
+
+        SOCKET_LOCK ();
 
         if (write (socket_fd, &op, sizeof (op)) != sizeof (op))
         {
@@ -193,7 +194,88 @@ lazy_operation_fliplayer (int layer_num, int buffer_num)
                 goto addlayer_fail;
         }
 
-        if (ret != 1)
+        if (ret.result != LAZY_OPERATION_RESULT_SUCCESS)
+                goto addlayer_fail;
+
+        SOCKET_UNLOCK ();
+
+        return 1;
+
+addlayer_fail:
+
+        SOCKET_UNLOCK ();
+
+        return 0;
+}
+
+int
+lazy_operation_addbuffer (int width, int height, int bpp,
+                          unsigned int *buffer_id)
+{
+        lazy_operation_addbuffer_t op;
+        lazy_operation_addbuffer_res_t ret;
+
+        memset (&op, 0, sizeof (op));
+        op.operation = LAZY_OPERATION_ADD_BUFFER;
+        op.width = width;
+        op.height = height;
+        op.bpp = bpp;
+
+        SOCKET_LOCK ();
+
+        if (write (socket_fd, &op, sizeof (op)) != sizeof (op))
+        {
+                perror ("write");
+                goto addlayer_fail;
+        }
+
+        if (read (socket_fd, &ret, sizeof (ret)) != sizeof (ret))
+        {
+                perror ("read");
+                goto addlayer_fail;
+        }
+
+        if (ret.result != LAZY_OPERATION_RESULT_SUCCESS)
+                goto addlayer_fail;
+
+        SOCKET_UNLOCK ();
+
+        *buffer_id = ret.buffer_id;
+
+        return 1;
+
+addlayer_fail:
+
+        SOCKET_UNLOCK ();
+
+        return 0;
+}
+
+int
+lazy_operation_delbuffer (unsigned int buffer_id)
+{
+        lazy_operation_delbuffer_t op;
+        lazy_operation_delbuffer_res_t ret;
+
+        memset (&op, 0, sizeof (op));
+        op.operation = LAZY_OPERATION_DEL_BUFFER;
+        op.buffer_id = buffer_id;
+
+        SOCKET_LOCK ();
+
+        if (write (socket_fd, &op, sizeof (op)) != sizeof (op))
+        {
+                perror ("write");
+                goto addlayer_fail;
+        }
+
+        if (read (socket_fd, &ret, sizeof (ret)) != sizeof (ret))
+        {
+                perror ("read");
+                goto addlayer_fail;
+        }
+
+        if (ret.result != LAZY_OPERATION_RESULT_SUCCESS)
                 goto addlayer_fail;
 
         SOCKET_UNLOCK ();

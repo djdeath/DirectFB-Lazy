@@ -29,8 +29,8 @@
 
 typedef struct {
         int magic;
-        int alloc_index;
-        int alloc_count;
+        /* int alloc_index; */
+        /* int alloc_count; */
 } LazyOSDPoolData;
 
 typedef struct {
@@ -42,9 +42,10 @@ typedef struct {
 typedef struct {
         int   magic;
 
-        int   buffer_index;
-        int   pitch;
-        int   size;
+        unsigned int buffer_id;
+
+        int rowstride;
+        int size;
 
         int   fd;
         void *ptr;
